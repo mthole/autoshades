@@ -1,12 +1,8 @@
 from datetime import datetime
 from pvlib import location
 import json
-import matplotlib.animation as animation
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 
 # Configuration
 LATITUDE, LONGITUDE, TZ = 45.5051, -122.6750, 'America/Los_Angeles'  # Location: Portland, OR
@@ -102,7 +98,7 @@ def calculate_shading_requirements(sun_position, desk_min, desk_max, window_min,
 	return top_percent, bottom_percent, total_rays, relative_azimuth, elevation
 
 ##
-##
+## Main
 ##
 
 # Get the current time in the specified timezone
@@ -132,90 +128,95 @@ print(json_output)
 
 
 ##
-## Main (Loop)
+## Time Series Generation
 ##
 
-# # Define your location, date, and time range
-# times = pd.date_range('2023-11-29 6:00 -08:00', '2023-11-29 21:00  -08:00', freq='15T')  # 8am to 5pm, in 15-minute increments
-
-# # Results storage
-# results = []
-
-# # Iterate over each time and each window to calculate shading requirements
-# for time in times:
-# 	sun_pos = sun_position(LATITUDE, LONGITUDE, TZ, time).iloc[0]  # Get sun position for the current time
-# 	desk_min, desk_max = DESK_BOUNDS["min"], DESK_BOUNDS["max"]
-
-# 	for window_name, bounds in WINDOW_BOUNDS.items():
-# 		window_min, window_max = bounds["min"], bounds["max"]
-# 		top_percent, bottom_percent, total_rays, relative_azimuth, elevation = calculate_shading_requirements(sun_pos, desk_min, desk_max, window_min, window_max, WINDOW_ORIENTATION)
-
-# 		# Store the results along with sun position
-# 		results.append((time, window_name, top_percent, bottom_percent, total_rays, relative_azimuth, elevation))
-
-# # Create a DataFrame from the results
-# df = pd.DataFrame(results, columns=['Timestamp', 'Window', 'Top Rail', 'Bottom Rail', 'Shady Rays', 'Relative Azimuth', 'Elevation'])
-
-# # Display the DataFrame
-# print(df.to_string(index=False))
+def generate_time_series():
+	import matplotlib.animation as animation
+	import matplotlib.dates as mdates
+	import matplotlib.pyplot as plt
 
 
-# ##
-# ## Animation
-# ##
+	# Define your location, date, and time range
+	times = pd.date_range('2023-11-29 6:00 -08:00', '2023-11-29 21:00  -08:00', freq='15T')  # 8am to 5pm, in 15-minute increments
 
-# def create_animation(results):
-# 	fig, axs = plt.subplots(3, 1, figsize=(10, 12), gridspec_kw={'height_ratios': [1, 1, 1]})
+	# Results storage
+	results = []
 
-# 	def animate(i):
-# 		# Clear previous contents
-# 		for ax in axs:
-# 			ax.clear()
+	# Iterate over each time and each window to calculate shading requirements
+	for time in times:
+		sun_pos = sun_position(LATITUDE, LONGITUDE, TZ, time).iloc[0]  # Get sun position for the current time
+		desk_min, desk_max = DESK_BOUNDS["min"], DESK_BOUNDS["max"]
 
-# 		# First subplot: Window1 shading
-# 		ax1 = axs[0]
-# 		time1, top1, bottom1 = results[i*2][0], results[i*2][2], results[i*2][3]
-# 		ax1.bar(x=time1, height=bottom1-top1, bottom=top1, width=0.1, color='blue', align='center')
-# 		ax1.set_title('Window1 Shading')
-# 		ax1.set_ylim([1, 0])
-# 		ax1.set_xticks([time1])
-# 		ax1.set_xticklabels([time1.strftime('%H:%M')])
+		for window_name, bounds in WINDOW_BOUNDS.items():
+			window_min, window_max = bounds["min"], bounds["max"]
+			top_percent, bottom_percent, total_rays, relative_azimuth, elevation = calculate_shading_requirements(sun_pos, desk_min, desk_max, window_min, window_max, WINDOW_ORIENTATION)
 
-# 		# Second subplot: Window2 shading
-# 		ax2 = axs[1]
-# 		time2, top2, bottom2 = results[i*2+1][0], results[i*2+1][2], results[i*2+1][3]
-# 		ax2.bar(x=time2, height=bottom2-top2, bottom=top2, width=0.1, color='red', align='center')
-# 		ax2.set_title('Window2 Shading')
-# 		ax2.set_ylim([1, 0])
-# 		ax2.set_xticks([time2])
-# 		ax2.set_xticklabels([time2.strftime('%H:%M')])
+			# Store the results along with sun position
+			results.append((time, window_name, top_percent, bottom_percent, total_rays, relative_azimuth, elevation))
 
-# 		# Third subplot: Sun position scatter plot
-# 		ax3 = axs[2]
-# 		# Extract sun position data for the current frame
-# 		sun_azimuth = results[i*2][5]  # Adjust index based on where azimuth is stored in results
-# 		sun_elevation = results[i*2][6]  # Adjust index based on where elevation is stored in results
-# 		ax3.scatter(sun_azimuth, sun_elevation, color='orange')
-# 		ax3.set_xlim([0, 360])
-# 		ax3.set_ylim([-30, 60])
-# 		ax3.set_xlabel('Relative Azimuth (degrees)')
-# 		ax3.set_ylabel('Elevation (degrees)')
-# 		ax3.set_title('Sun Position at ' + results[i*2][0].strftime('%H:%M'))
+	# Create a DataFrame from the results
+	df = pd.DataFrame(results, columns=['Timestamp', 'Window', 'Top Rail', 'Bottom Rail', 'Shady Rays', 'Relative Azimuth', 'Elevation'])
 
-# 		fig.suptitle('Shading Requirements and Sun Position Over Time')
+	# Display the DataFrame
+	print(df.to_string(index=False))
 
-# 	ani = animation.FuncAnimation(fig, animate, frames=len(times), interval=200)
-# 	plt.show()
-# 	return ani
 
-# # Call the function to create the animation
-# animation_obj = create_animation(results)
+	##
+	## Animation
+	##
 
-# import os
-# os.environ['PATH'] += os.pathsep + '/opt/homebrew/bin'
-# print(os.environ['PATH'])
+	def create_animation(results):
+		fig, axs = plt.subplots(3, 1, figsize=(10, 12), gridspec_kw={'height_ratios': [1, 1, 1]})
 
-# # animation_obj.save('/Users/mthole/Desktop/animation.mp4', writer='ffmpeg', fps=10, bitrate=1800)
+		def animate(i):
+			# Clear previous contents
+			for ax in axs:
+				ax.clear()
+
+			# First subplot: Window1 shading
+			ax1 = axs[0]
+			time1, top1, bottom1 = results[i*2][0], results[i*2][2], results[i*2][3]
+			ax1.bar(x=time1, height=bottom1-top1, bottom=top1, width=0.1, color='blue', align='center')
+			ax1.set_title('Window1 Shading')
+			ax1.set_ylim([1, 0])
+			ax1.set_xticks([time1])
+			ax1.set_xticklabels([time1.strftime('%H:%M')])
+
+			# Second subplot: Window2 shading
+			ax2 = axs[1]
+			time2, top2, bottom2 = results[i*2+1][0], results[i*2+1][2], results[i*2+1][3]
+			ax2.bar(x=time2, height=bottom2-top2, bottom=top2, width=0.1, color='red', align='center')
+			ax2.set_title('Window2 Shading')
+			ax2.set_ylim([1, 0])
+			ax2.set_xticks([time2])
+			ax2.set_xticklabels([time2.strftime('%H:%M')])
+
+			# Third subplot: Sun position scatter plot
+			ax3 = axs[2]
+			# Extract sun position data for the current frame
+			sun_azimuth = results[i*2][5]  # Adjust index based on where azimuth is stored in results
+			sun_elevation = results[i*2][6]  # Adjust index based on where elevation is stored in results
+			ax3.scatter(sun_azimuth, sun_elevation, color='orange')
+			ax3.set_xlim([0, 360])
+			ax3.set_ylim([-30, 60])
+			ax3.set_xlabel('Relative Azimuth (degrees)')
+			ax3.set_ylabel('Elevation (degrees)')
+			ax3.set_title('Sun Position at ' + results[i*2][0].strftime('%H:%M'))
+
+			fig.suptitle('Shading Requirements and Sun Position Over Time')
+
+		ani = animation.FuncAnimation(fig, animate, frames=len(times), interval=200)
+		plt.show()
+		return ani
+
+	# Call the function to create the animation
+	animation_obj = create_animation(results)
+
+	# import os
+	# os.environ['PATH'] += os.pathsep + '/opt/homebrew/bin'
+	# print(os.environ['PATH'])
+	# animation_obj.save('/Users/mthole/Desktop/animation.mp4', writer='ffmpeg', fps=10, bitrate=1800)
 
 
 
