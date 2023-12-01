@@ -3,6 +3,8 @@ from pvlib import location
 import json
 import numpy as np
 import pandas as pd
+import requests
+import time
 
 # Configuration
 LATITUDE, LONGITUDE, TZ = 45.5051, -122.6750, 'America/Los_Angeles'  # Location: Portland, OR
@@ -64,11 +66,11 @@ def calculate_shading_requirements(sun_position, desk_min, desk_max, window_min,
 	min_z, max_z = np.inf, -np.inf
 	total_rays = 0
 
-	relative_azimuth = sun_pos['azimuth'] - WINDOW_ORIENTATION
+	relative_azimuth = sun_position['azimuth'] - WINDOW_ORIENTATION
 	if relative_azimuth < 0:
 		relative_azimuth += 360
 	
-	elevation = sun_pos['elevation']
+	elevation = sun_position['elevation']
 	
 	# Convert degrees to radians
 	relative_azimuth_rads = np.radians(relative_azimuth)
@@ -97,34 +99,53 @@ def calculate_shading_requirements(sun_position, desk_min, desk_max, window_min,
 
 	return top_percent, bottom_percent, total_rays, relative_azimuth, elevation
 
+
+##
+## Calcuate Current Shade Positions
+##
+
+def calculate_current_shade_positions():
+	# Get the current time in the specified timezone
+	current_time = pd.Timestamp(datetime.now(), tz=TZ)
+
+	# Calculate sun position for the current time
+	sun_pos = sun_position(LATITUDE, LONGITUDE, TZ, current_time).iloc[0]
+
+	# Storage for the shade state
+	shade_state = {}
+
+	# Calculate shading requirements for each window
+	for window_name, bounds in WINDOW_BOUNDS.items():
+	    window_min, window_max = bounds["min"], bounds["max"]
+	    top_percent, bottom_percent, _, _, _ = calculate_shading_requirements(sun_pos, DESK_BOUNDS["min"], DESK_BOUNDS["max"], window_min, window_max, WINDOW_ORIENTATION)
+
+	    # Convert percentages to positions (0-100 scale, for example)
+	    top_position = int(top_percent * 100)
+	    bottom_position = 100 - int(bottom_percent * 100)
+
+	    # Store the shade state
+	    shade_state[window_name] = {"top": top_position, "bottom": bottom_position}
+
+	return shade_state
+
 ##
 ## Main
 ##
 
-# Get the current time in the specified timezone
-current_time = pd.Timestamp(datetime.now(), tz=TZ)
+NODE_RED_ENDPOINT = "http://192.168.0.2:1880/endpoint/autoshades"
 
-# Calculate sun position for the current time
-sun_pos = sun_position(LATITUDE, LONGITUDE, TZ, current_time).iloc[0]
+while True:
+    # Calculate the current shade positions (reuse your existing code here)
+    json_output = calculate_current_shade_positions()
+    print(json_output)
 
-# Storage for the shade state
-shade_state = {}
+    # Send the POST request to Node-RED
+    response = requests.post(NODE_RED_ENDPOINT, json=json_output)
+    print(f"Response: {response.status_code}, {response.text}")
 
-# Calculate shading requirements for each window
-for window_name, bounds in WINDOW_BOUNDS.items():
-    window_min, window_max = bounds["min"], bounds["max"]
-    top_percent, bottom_percent, _, _, _ = calculate_shading_requirements(sun_pos, DESK_BOUNDS["min"], DESK_BOUNDS["max"], window_min, window_max, WINDOW_ORIENTATION)
+    # Wait for 5 minutes before the next update
+    time.sleep(300)
 
-    # Convert percentages to positions (0-100 scale, for example)
-    top_position = int(top_percent * 100)
-    bottom_position = 100 - int(bottom_percent * 100)
-
-    # Store the shade state
-    shade_state[window_name] = {"top": top_position, "bottom": bottom_position}
-
-# Convert the shade state to JSON string
-json_output = json.dumps(shade_state, indent=2)
-print(json_output)
 
 
 ##
